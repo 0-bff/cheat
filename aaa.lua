@@ -5,18 +5,25 @@ local Main = library:CreateWindow("BrainBlox Hub", "Crimson")
 local playerTab = Main:CreateTab("Player")
 local visualsTab = Main:CreateTab("Visuals")
 local configTab = Main:CreateTab("Config")
+local aimTab = Main:CreateTab("Aim")
 
--- Variáveis úteis
+-- Vars
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local uis = game:GetService("UserInputService")
+local run = game:GetService("RunService")
 local humanoid
 local infJumpEnabled = false
 local fovCircle = nil
 local espEnabled = false
 local glowEnabled = false
+local toggleKey = Enum.KeyCode.RightControl
+local aimbotEnabled = false
+local aimbotStrength = 1
+local aimbotFOV = 100
+local aimbotColor = Color3.fromRGB(255, 0, 0)
 
--- Atualiza humanoid sempre
+-- Utils
 local function updateHumanoid()
     if player.Character then
         humanoid = player.Character:FindFirstChildOfClass("Humanoid")
@@ -27,36 +34,29 @@ player.CharacterAdded:Connect(function()
     wait(1)
     updateHumanoid()
 end)
-
 updateHumanoid()
 
--- // PLAYER TAB
-
--- Speed
+-- // PLAYER
 playerTab:CreateSlider("Velocidade", 16, 200, function(val)
     if humanoid then humanoid.WalkSpeed = val end
 end)
 
--- JumpPower
 playerTab:CreateSlider("Pulo", 50, 300, function(val)
     if humanoid then humanoid.JumpPower = val end
 end)
 
--- Infinity Jump (melhorado)
 playerTab:CreateToggle("Infinity Jump", function(state)
     infJumpEnabled = state
 end)
 
 uis.JumpRequest:Connect(function()
     if infJumpEnabled and player.Character and humanoid then
-        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
 
--- // VISUALS TAB
-
--- ESP básico (nome sobre a cabeça)
-function toggleESP(state)
+-- // VISUALS
+visualsTab:CreateToggle("ESP", function(state)
     espEnabled = state
     for _, plr in pairs(game.Players:GetPlayers()) do
         if plr ~= player then
@@ -79,20 +79,17 @@ function toggleESP(state)
             end
         end
     end
-end
+end)
 
-visualsTab:CreateToggle("ESP", toggleESP)
-
--- FOV Circle
-visualsTab:CreateToggle("FOV", function(state)
+visualsTab:CreateToggle("FOV Circle", function(state)
     if state then
         fovCircle = Drawing.new("Circle")
         fovCircle.Visible = true
         fovCircle.Radius = 100
-        fovCircle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)
         fovCircle.Thickness = 2
-        fovCircle.Color = Color3.fromRGB(0, 255, 0)
-        fovCircle.Transparency = 0.5
+        fovCircle.Filled = false
+        fovCircle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)
+        fovCircle.Color = Color3.fromRGB(0,255,0)
     else
         if fovCircle then
             fovCircle:Remove()
@@ -101,32 +98,83 @@ visualsTab:CreateToggle("FOV", function(state)
     end
 end)
 
--- Glow (Highlight dos jogadores)
 visualsTab:CreateToggle("Glow", function(state)
     glowEnabled = state
+    for _, plr in pairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            if state then
+                local hl = Instance.new("Highlight", plr.Character)
+                hl.Name = "BrainGlow"
+                hl.FillColor = Color3.fromRGB(255, 255, 0)
+                hl.OutlineColor = Color3.fromRGB(0, 0, 0)
+            else
+                local hl = plr.Character:FindFirstChild("BrainGlow")
+                if hl then hl:Destroy() end
+            end
+        end
+    end
+end)
+
+visualsTab:CreateColorPicker("Cor Glow/FOV", Color3.fromRGB(0,255,0), function(color)
+    if fovCircle then fovCircle.Color = color end
     for _, plr in pairs(game.Players:GetPlayers()) do
         if plr ~= player then
             local char = plr.Character
             if char then
-                if state then
-                    local hl = Instance.new("Highlight", char)
-                    hl.Name = "BrainGlow"
-                    hl.FillColor = Color3.fromRGB(255, 255, 0)
-                    hl.OutlineColor = Color3.fromRGB(0, 0, 0)
-                else
-                    local hl = char:FindFirstChild("BrainGlow")
-                    if hl then hl:Destroy() end
+                local glow = char:FindFirstChild("BrainGlow")
+                if glow then
+                    glow.FillColor = color
                 end
             end
         end
     end
 end)
 
--- // CONFIG TAB
+-- // AIM
+aimTab:CreateSlider("FOV do Aimbot", 50, 300, function(val)
+    aimbotFOV = val
+end)
 
--- Trocar tecla de abrir/fechar menu
-local toggleKey = Enum.KeyCode.RightControl
-configTab:CreateDropdown("Tecla do menu", {"RightControl", "Insert", "F4", "F10", "Home"}, function(selected)
+aimTab:CreateSlider("Força do Aimbot", 1, 10, function(val)
+    aimbotStrength = val
+end)
+
+aimTab:CreateColorPicker("Cor do Aimbot", Color3.fromRGB(255,0,0), function(color)
+    aimbotColor = color
+end)
+
+aimTab:CreateToggle("Ativar Aimbot", function(state)
+    aimbotEnabled = state
+end)
+
+-- Aimbot lógico
+run.RenderStepped:Connect(function()
+    if aimbotEnabled and player and player.Character then
+        local cam = workspace.CurrentCamera
+        local closest = nil
+        local shortest = aimbotFOV
+
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") then
+                local pos, onScreen = cam:WorldToViewportPoint(plr.Character.Head.Position)
+                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
+                if onScreen and dist < shortest then
+                    closest = plr
+                    shortest = dist
+                end
+            end
+        end
+
+        if closest and closest.Character and closest.Character:FindFirstChild("Head") then
+            local head = closest.Character.Head.Position
+            local look = (head - cam.CFrame.Position).Unit
+            cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, cam.CFrame.Position + look), aimbotStrength / 100)
+        end
+    end
+end)
+
+-- // CONFIG
+configTab:CreateDropdown("Tecla do Menu", {"RightControl", "Insert", "F4", "F10", "Home"}, function(selected)
     toggleKey = Enum.KeyCode[selected]
 end)
 
@@ -136,5 +184,4 @@ uis.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- Mostrar o primeiro menu
 playerTab:Show()

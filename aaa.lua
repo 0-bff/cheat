@@ -130,24 +130,50 @@ visualsTab:CreateColorPicker("Cor Glow/FOV", Color3.fromRGB(0,255,0), function(c
     end
 end)
 
--- // AIM
+-- ABA AIM UNIFICADA
+local aimbotEnabled = false
+local aimbotStrength = 1
+local aimbotFOV = 100
+local aimbotColor = Color3.fromRGB(255, 0, 0)
+local fovCircle = nil
+
+aimTab:CreateToggle("Ativar Aimbot", function(state)
+    aimbotEnabled = state
+end)
+
 aimTab:CreateSlider("FOV do Aimbot", 50, 300, function(val)
     aimbotFOV = val
+    if fovCircle then fovCircle.Radius = val end
 end)
 
 aimTab:CreateSlider("Força do Aimbot", 1, 10, function(val)
     aimbotStrength = val
 end)
 
-aimTab:CreateColorPicker("Cor do Aimbot", Color3.fromRGB(255,0,0), function(color)
+aimTab:CreateColorPicker("Cor do Aimbot/FOV", Color3.fromRGB(255,0,0), function(color)
     aimbotColor = color
+    if fovCircle then fovCircle.Color = color end
 end)
 
-aimTab:CreateToggle("Ativar Aimbot", function(state)
-    aimbotEnabled = state
+aimTab:CreateToggle("FOV Visível", function(state)
+    if state then
+        fovCircle = Drawing.new("Circle")
+        fovCircle.Visible = true
+        fovCircle.Filled = false
+        fovCircle.Thickness = 2
+        fovCircle.Color = aimbotColor
+        fovCircle.Transparency = 0.5
+        fovCircle.Radius = aimbotFOV
+        fovCircle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)
+    else
+        if fovCircle then
+            fovCircle:Remove()
+            fovCircle = nil
+        end
+    end
 end)
 
--- Aimbot lógico
+-- LÓGICA DE AIMBOT
 run.RenderStepped:Connect(function()
     if aimbotEnabled and player and player.Character then
         local cam = workspace.CurrentCamera
@@ -172,6 +198,7 @@ run.RenderStepped:Connect(function()
         end
     end
 end)
+
 
 -- // CONFIG
 configTab:CreateDropdown("Tecla do Menu", {"RightControl", "Insert", "F4", "F10", "Home"}, function(selected)

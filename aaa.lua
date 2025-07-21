@@ -1,27 +1,18 @@
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/ShaddowScripts/Main/main/Library"))()
 local Main = library:CreateWindow("BrainBlox Hub", "Crimson")
 
--- Tabs na ordem ideal
+-- Tabs organizadas
 local playerTab = Main:CreateTab("Player")
-local aimTab = Main:CreateTab("Aim")
+local stealTab = Main:CreateTab("Steal")
 local visualsTab = Main:CreateTab("Visuals")
 local configTab = Main:CreateTab("Config")
 
--- Vars
+-- Variáveis
 local player = game.Players.LocalPlayer
-local mouse = player:GetMouse()
 local uis = game:GetService("UserInputService")
-local run = game:GetService("RunService")
 local humanoid
-local infJumpEnabled = false
-local fovCircle = nil
-local toggleKey = Enum.KeyCode.RightControl
-local aimbotEnabled = false
-local aimbotStrength = 1
-local aimbotFOV = 100
-local aimbotColor = Color3.fromRGB(255, 0, 0)
 
--- Atualiza Humanoid
+-- Atualiza humanoid
 local function updateHumanoid()
     if player.Character then
         humanoid = player.Character:FindFirstChildOfClass("Humanoid")
@@ -39,6 +30,7 @@ playerTab:CreateSlider("Pulo", 50, 300, function(val)
     if humanoid then humanoid.JumpPower = val end
 end)
 
+local infJumpEnabled = false
 playerTab:CreateToggle("Infinity Jump", function(state)
     infJumpEnabled = state
 end)
@@ -49,69 +41,16 @@ uis.JumpRequest:Connect(function()
     end
 end)
 
---// AIM (com tudo fixado)
-aimTab:CreateToggle("Ativar Aimbot", function(state)
-    aimbotEnabled = state
-end)
-
-aimTab:CreateSlider("FOV do Aimbot", 50, 300, function(val)
-    aimbotFOV = val
-    if fovCircle then fovCircle.Radius = val end
-end)
-
-aimTab:CreateSlider("Força do Aimbot", 1, 10, function(val)
-    aimbotStrength = val
-end)
-
-aimTab:CreateColorPicker("Cor do Aimbot/FOV", Color3.fromRGB(255, 0, 0), function(color)
-    aimbotColor = color
-    if fovCircle then fovCircle.Color = color end
-end)
-
-aimTab:CreateToggle("FOV Visível", function(state)
-    if state then
-        fovCircle = Drawing.new("Circle")
-        fovCircle.Visible = true
-        fovCircle.Filled = false
-        fovCircle.Thickness = 2
-        fovCircle.Color = aimbotColor
-        fovCircle.Transparency = 0.5
-        fovCircle.Radius = aimbotFOV
-        fovCircle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)
-    else
-        if fovCircle then
-            fovCircle:Remove()
-            fovCircle = nil
-        end
+--// STEAL
+stealTab:CreateButton("Teleportar Pra Frente", function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local root = char.HumanoidRootPart
+        root.CFrame = root.CFrame + (root.CFrame.LookVector * 10)
     end
 end)
 
-run.RenderStepped:Connect(function()
-    if aimbotEnabled and player and player.Character then
-        local cam = workspace.CurrentCamera
-        local closest = nil
-        local shortest = aimbotFOV
-
-        for _, plr in pairs(game.Players:GetPlayers()) do
-            if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") then
-                local pos, onScreen = cam:WorldToViewportPoint(plr.Character.Head.Position)
-                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
-                if onScreen and dist < shortest then
-                    closest = plr
-                    shortest = dist
-                end
-            end
-        end
-
-        if closest and closest.Character and closest.Character:FindFirstChild("Head") then
-            local head = closest.Character.Head.Position
-            local look = (head - cam.CFrame.Position).Unit
-            cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, cam.CFrame.Position + look), aimbotStrength / 100)
-        end
-    end
-end)
-
---// VISUALS (opcional, só base)
+--// VISUALS (opcional)
 visualsTab:CreateToggle("ESP (Nome)", function(state)
     for _, plr in pairs(game.Players:GetPlayers()) do
         if plr ~= player then
@@ -153,6 +92,7 @@ visualsTab:CreateToggle("Glow", function(state)
 end)
 
 --// CONFIG
+local toggleKey = Enum.KeyCode.RightControl
 configTab:CreateDropdown("Tecla do Menu", {"RightControl", "Insert", "F4", "F10", "Home"}, function(selected)
     toggleKey = Enum.KeyCode[selected]
 end)
@@ -163,5 +103,5 @@ uis.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- Mostrar a aba principal primeiro
+-- Mostrar Player primeiro
 playerTab:Show()
